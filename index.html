@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Bus Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --ink:#1D2029;
+    --ink-soft:#5B6070;
+    --paper:#EEF0F3;
+    --paper-deep:#E2E5EA;
+    --board:#14171F;
+    --board-line:#2A2F3B;
+    --amber:#FFB627;
+    --amber-deep:#E69C0E;
+    --signal:#2FBE85;
+    --alert:#FF6F59;
+    --offline:#8A8F9C;
+    --white:#FFFFFF;
+    --radius-card: 14px;
+    --radius-pill: 999px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+
+  h1,h2,h3, .display{
+    font-family:'Big Shoulders Display','Inter',sans-serif;
+    font-weight:700;
+    letter-spacing:0.01em;
+    margin:0;
+  }
+
+  button{font-family:inherit;}
+
+  /* ---------- Destination board header ---------- */
+  .board{
+    background:var(--board);
+    color:var(--white);
+    padding:22px 28px 18px;
+    border-bottom:4px solid var(--amber);
+  }
+  .board-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:10px;
+    max-width:1180px;
+    margin:0 auto;
+  }
+  .board-title{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+  }
+  .board-title h1{
+    font-size:34px;
+    color:var(--amber);
+  }
+  .board-title span{
+    font-size:13px;
+    color:#9CA2B0;
+    font-family:'Inter',sans-serif;
+  }
+  .board-clock{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-size:15px;
+    color:#B9BEC9;
+    letter-spacing:0.03em;
+  }
+  .board-ticker{
+    max-width:1180px;
+    margin:14px auto 0;
+    overflow:hidden;
+    white-space:nowrap;
+    border-top:1px solid var(--board-line);
+    padding-top:10px;
+  }
+  .board-ticker-inner{
+    display:inline-flex;
+    gap:38px;
+    animation:scroll 22s linear infinite;
+    font-size:13px;
+    color:#C7CBD4;
+  }
+  .board-ticker-inner span b{color:var(--amber); font-weight:600;}
+  @keyframes scroll{
+    from{transform:translateX(0);}
+    to{transform:translateX(-50%);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .board-ticker-inner{animation:none;}
+  }
+
+  /* ---------- Shell ---------- */
+  .shell{
+    max-width:1180px;
+    margin:0 auto;
+    padding:26px 28px 60px;
+  }
+
+  .tabs{
+    display:inline-flex;
+    background:var(--white);
+    border-radius:var(--radius-pill);
+    padding:5px;
+    box-shadow:0 1px 0 rgba(20,23,31,0.05) inset, 0 6px 16px rgba(20,23,31,0.06);
+    margin-bottom:26px;
+  }
+  .tab-btn{
+    border:none;
+    background:transparent;
+    padding:10px 22px;
+    border-radius:var(--radius-pill);
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+    transition:background .18s ease, color .18s ease;
+  }
+  .tab-btn.active{
+    background:var(--ink);
+    color:var(--white);
+  }
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .grid{
+    display:grid;
+    grid-template-columns:380px 1fr;
+    gap:22px;
+    align-items:start;
+  }
+  @media (max-width: 860px){
+    .grid{grid-template-columns:1fr;}
+  }
+
+  .card{
+    background:var(--white);
+    border-radius:var(--radius-card);
+    padding:22px;
+    box-shadow:0 1px 0 rgba(20,23,31,0.04), 0 10px 28px rgba(20,23,31,0.05);
+  }
+  .card + .card{margin-top:18px;}
+
+  .card h2{
+    font-size:22px;
+    margin-bottom:4px;
+  }
+  .card .sub{
+    color:var(--ink-soft);
+    font-size:13.5px;
+    margin-bottom:18px;
+    line-height:1.5;
+  }
+
+  label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+    margin-top:14px;
+  }
+  label:first-of-type{margin-top:0;}
+
+  input[type=text], input[type=tel], select{
+    width:100%;
+    padding:11px 13px;
+    border-radius:9px;
+    border:1.5px solid var(--paper-deep);
+    background:var(--paper);
+    font-size:14.5px;
+    font-family:inherit;
+    color:var(--ink);
+    outline:none;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  input:focus, select:focus{
+    border-color:var(--amber-deep);
+    background:var(--white);
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    width:100%;
+    padding:12px 16px;
+    margin-top:18px;
+    border-radius:9px;
+    border:none;
+    font-size:14.5px;
+    font-weight:600;
+    cursor:pointer;
+    transition:transform .12s ease, filter .12s ease;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--ink); color:var(--white);}
+  .btn-primary:hover{filter:brightness(1.15);}
+  .btn-amber{background:var(--amber); color:#3A2600;}
+  .btn-amber:hover{filter:brightness(1.06);}
+  .btn:focus-visible{outline:3px solid var(--amber-deep); outline-offset:2px;}
+
+  .hint{font-size:12px; color:var(--ink-soft); margin-top:8px;}
+  .error-text{font-size:12.5px; color:var(--alert); margin-top:8px; font-weight:600;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+  .chip{
+    border:1.5px solid var(--paper-deep);
+    background:var(--paper);
+    border-radius:var(--radius-pill);
+    padding:7px 13px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .chip:hover{border-color:var(--amber-deep); color:var(--ink);}
+
+  /* ---------- Driver ID result card ---------- */
+  .id-card{
+    background:linear-gradient(135deg, var(--board), #23283a);
+    color:var(--white);
+    border-radius:12px;
+    padding:18px 20px;
+    margin-top:16px;
+  }
+  .id-card .label{font-size:11px; color:#9CA2B0; text-transform:none; font-weight:600;}
+  .id-card .value{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-size:26px;
+    color:var(--amber);
+    margin-top:2px;
+  }
+  .id-card .row{display:flex; justify-content:space-between; margin-top:12px; gap:14px;}
+
+  /* ---------- Status badge ---------- */
+  .status-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 15px;
+    border-radius:var(--radius-pill);
+    font-size:13px;
+    font-weight:700;
+  }
+  .status-badge .dot{width:8px; height:8px; border-radius:50%;}
+  .status-on{background:#E4F8EF; color:#1D8E5E;}
+  .status-on .dot{background:var(--signal); box-shadow:0 0 0 4px rgba(47,190,133,0.18);}
+  .status-soon{background:#FFF1E0; color:#B96A00;}
+  .status-soon .dot{background:var(--amber-deep); box-shadow:0 0 0 4px rgba(230,156,14,0.18);}
+  .status-stop{background:#E7ECFF; color:#3A4FC7;}
+  .status-stop .dot{background:#4F63E0;}
+  .status-off{background:#EEEFF2; color:var(--offline);}
+  .status-off .dot{background:var(--offline);}
+
+  /* ---------- Driver dashboard ---------- */
+  .toggle-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--paper);
+    border-radius:12px;
+    padding:16px 18px;
+    margin-top:16px;
+  }
+  .toggle-row .txt strong{display:block; font-size:14.5px;}
+  .toggle-row .txt span{font-size:12.5px; color:var(--ink-soft);}
+  .switch{
+    position:relative; width:52px; height:30px; flex-shrink:0;
+  }
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{
+    position:absolute; cursor:pointer; inset:0;
+    background:#D3D6DC; border-radius:30px; transition:.2s;
+  }
+  .slider:before{
+    content:""; position:absolute; height:22px; width:22px; left:4px; top:4px;
+    background:white; border-radius:50%; transition:.2s;
+    box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  }
+  input:checked + .slider{background:var(--signal);}
+  input:checked + .slider:before{transform:translateX(22px);}
+
+  .kv-list{margin-top:16px; display:grid; gap:10px;}
+  .kv-list .kv{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding-bottom:9px; border-bottom:1px solid var(--paper-deep);
+    font-size:13.5px;
+  }
+  .kv-list .kv .k{color:var(--ink-soft);}
+  .kv-list .kv .v{font-weight:600; text-align:right;}
+
+  .coord{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-size:15px;
+    color:var(--ink-soft);
+  }
+
+  /* ---------- Map / route panel ---------- */
+  .map-card{padding:0; overflow:hidden;}
+  .map-head{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:20px 22px 0;
+    flex-wrap:wrap; gap:10px;
+  }
+  .map-head h2{font-size:22px;}
+  .map-head .route-name{color:var(--ink-soft); font-size:13.5px; margin-top:2px;}
+  .map-wrap{padding:14px 10px 20px;}
+  svg{display:block; width:100%; height:auto;}
+
+  .stop-label{font-size:10.5px; fill:var(--ink-soft); font-family:'Inter',sans-serif; font-weight:600;}
+  .stop-dot{fill:var(--white); stroke:var(--ink-soft); stroke-width:2;}
+  .stop-dot.passed{fill:var(--signal); stroke:var(--signal);}
+  .stop-dot.current{fill:var(--amber); stroke:var(--amber-deep);}
+  .route-path{fill:none; stroke:var(--paper-deep); stroke-width:8; stroke-linecap:round;}
+  .route-progress{fill:none; stroke:var(--amber); stroke-width:8; stroke-linecap:round;}
+
+  .bus-icon{filter:drop-shadow(0 3px 5px rgba(0,0,0,0.25));}
+
+  .real-map-el{height:320px; border-radius:10px; overflow:hidden;}
+  .real-bus-marker{font-size:22px; text-align:center; line-height:26px;}
+  .real-map-note{padding:0 22px 4px; font-size:12px; color:var(--ink-soft);}
+
+  .stop-strip{
+    display:flex; flex-wrap:wrap; gap:8px;
+    padding:0 22px 22px;
+  }
+  .stop-pill{
+    font-size:12px; font-weight:600;
+    padding:6px 12px; border-radius:var(--radius-pill);
+    background:var(--paper); color:var(--ink-soft);
+    border:1.5px solid transparent;
+  }
+  .stop-pill.passed{background:#E4F8EF; color:#1D8E5E;}
+  .stop-pill.current{background:var(--amber); color:#3A2600; border-color:var(--amber-deep);}
+
+  .empty-map{
+    padding:60px 30px; text-align:center; color:var(--ink-soft);
+  }
+  .empty-map .big{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-size:26px; color:var(--ink); margin-bottom:8px;
+  }
+
+  footer{
+    text-align:center; color:var(--ink-soft); font-size:12px;
+    padding:20px; max-width:1180px; margin:0 auto;
+  }
+
+  ::selection{background:var(--amber); color:#3A2600;}
+</style>
+</head>
+<body>
+
+<div class="board">
+  <div class="board-top">
+    <div class="board-title">
+      <h1>Smart Bus Tracker</h1>
+      <span>Prototype &middot; simulated GPS</span>
+    </div>
+    <div class="board-clock" id="clock">--:--:--</div>
+  </div>
+  <div class="board-ticker">
+    <div class="board-ticker-inner" id="ticker"></div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="student">Student</button>
+    <button class="tab-btn" data-tab="driver">Driver</button>
+  </div>
+
+  <!-- ================= STUDENT PANEL ================= -->
+  <div class="panel active" id="panel-student">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Find your bus</h2>
+          <div class="sub">Enter a bus number or driver ID to see where it is right now.</div>
+
+          <label for="s-search">Bus number or driver ID</label>
+          <input type="text" id="s-search" placeholder="e.g. RJ14-BUS-07 or DRV-1001">
+          <div class="error-text" id="s-error" style="display:none;"></div>
+          <button class="btn btn-amber" id="s-search-btn">Track this bus</button>
+
+          <div class="hint">Try one of the demo buses:</div>
+          <div class="chips" id="s-chips"></div>
+        </div>
+
+        <div class="card" id="s-details" style="display:none;">
+          <h2>Bus details</h2>
+          <div class="kv-list" id="s-kv"></div>
+        </div>
+      </div>
+
+      <div class="card map-card" id="s-map-card">
+        <div class="empty-map">
+          <div class="big">No bus selected yet</div>
+          Search a bus number on the left to see its live position on the route.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DRIVER PANEL ================= -->
+  <div class="panel" id="panel-driver">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Driver login</h2>
+          <div class="sub">Already registered? Log in with your mobile number or driver ID.</div>
+          <label for="d-login">Mobile number or driver ID</label>
+          <input type="text" id="d-login" placeholder="e.g. 9876543210 or DRV-1001">
+          <div class="error-text" id="d-login-error" style="display:none;"></div>
+          <button class="btn btn-primary" id="d-login-btn">Log in</button>
+        </div>
+
+        <div class="card">
+          <h2>New driver? Register</h2>
+          <div class="sub">Sign up with your mobile number and assigned bus to start sharing location.</div>
+
+          <label for="r-name">Full name</label>
+          <input type="text" id="r-name" placeholder="e.g. Ramesh Yadav">
+
+          <label for="r-mobile">Mobile number</label>
+          <input type="tel" id="r-mobile" placeholder="10-digit mobile number" maxlength="10">
+
+          <label for="r-bus">Bus number</label>
+          <input type="text" id="r-bus" placeholder="e.g. RJ14-BUS-21">
+
+          <label for="r-route">Route</label>
+          <select id="r-route"></select>
+
+          <div class="error-text" id="r-error" style="display:none;"></div>
+          <button class="btn btn-amber" id="r-btn">Register as driver</button>
+
+          <div class="id-card" id="r-result" style="display:none;">
+            <div class="label">Your driver ID</div>
+            <div class="value" id="r-result-id">DRV-0000</div>
+            <div class="row">
+              <div>
+                <div class="label">Bus number</div>
+                <div class="v" id="r-result-bus" style="font-weight:600;"></div>
+              </div>
+              <div>
+                <div class="label">Route</div>
+                <div class="v" id="r-result-route" style="font-weight:600;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="d-dashboard-wrap">
+        <div class="card map-card">
+          <div class="empty-map">
+            <div class="big">You're not logged in</div>
+            Register or log in on the left to open your driver dashboard.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Smart Bus Tracker &middot; coordinates are simulated for this prototype &middot; swap in a real GPS feed via the Geolocation API for production</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ======================================================================
+   DATA MODEL
+   In a real deployment, "drivers" would live in a backend database and
+   "position" would come from the phone's Geolocation API instead of the
+   simulator below. Everything here runs in memory for the demo.
+   ====================================================================== */
+
+const ROUTES = {
+  A: {
+    name: "Campus Express",
+    path: "M 30 300 C 90 220, 60 140, 140 110 C 220 80, 260 150, 340 130 C 420 110, 430 40, 520 40 C 580 40, 600 70, 610 100",
+    stops: [
+      { name: "Main Gate", frac: 0.00 },
+      { name: "Library Circle", frac: 0.22 },
+      { name: "Hostel Block C", frac: 0.44 },
+      { name: "Sports Complex", frac: 0.63 },
+      { name: "Tech Park Junction", frac: 0.82 },
+      { name: "City Mall", frac: 1.00 }
+    ]
+  },
+  B: {
+    name: "City Circular",
+    path: "M 30 60 C 120 60, 100 160, 190 180 C 280 200, 300 120, 380 140 C 460 160, 440 260, 530 280 C 580 292, 600 300, 615 310",
+    stops: [
+      { name: "Railway Station", frac: 0.00 },
+      { name: "Clock Tower", frac: 0.20 },
+      { name: "Civil Lines", frac: 0.42 },
+      { name: "Collectorate", frac: 0.60 },
+      { name: "University Gate", frac: 0.80 },
+      { name: "Bus Stand", frac: 1.00 }
+    ]
+  },
+  C: {
+    name: "Riverside Line",
+    path: "M 30 180 C 100 100, 180 260, 250 190 C 320 120, 360 220, 440 190 C 520 160, 540 90, 610 70",
+    stops: [
+      { name: "Riverside Colony", frac: 0.00 },
+      { name: "Ghat Road", frac: 0.24 },
+      { name: "Old Bridge", frac: 0.46 },
+      { name: "Market Square", frac: 0.66 },
+      { name: "College Chowk", frac: 0.85 },
+      { name: "Terminus", frac: 1.00 }
+    ]
+  }
+};
+
+// Base real-world coordinate used to compute realistic-looking simulated lat/lng
+const BASE_LAT = 26.9124, BASE_LNG = 75.7873;
+
+let nextDriverSeq = 1004;
+const drivers = {}; // keyed by driverId
+
+function makeDriver(driverId, name, mobile, bus, routeId, sharing){
+  drivers[driverId] = {
+    driverId, name, mobile, bus, routeId,
+    sharing: sharing,
+    progress: Math.random(), // 0..1 position along the path
+    speed: 0.02 + Math.random()*0.015, // progress per tick
+    lastUpdated: Date.now(),
+    realMode: false,      // true once the driver has switched on their device's real GPS
+    realCoords: null,     // { lat, lng, accuracy } from navigator.geolocation
+    geoWatchId: null,
+    geoError: null
+  };
+}
+
+/* ----------------------------------------------------------------------
+   REAL GPS (Geolocation API) — only works for the driver's own device,
+   in the same browser tab that grants permission. Route-map animation
+   still relies on the simulated progress value below, since projecting
+   a real lat/lng onto one of the demo routes would need real map-matching
+   on a backend, which is out of scope for this prototype.
+   ---------------------------------------------------------------------- */
+function startRealGPS(driver){
+  driver.geoError = null;
+  if(!navigator.geolocation){
+    driver.geoError = "Geolocation isn't supported in this browser.";
+    driver.realMode = false;
+    return;
+  }
+  if(!window.isSecureContext){
+    driver.geoError = "Real GPS needs HTTPS (or localhost) — this page isn't loaded securely.";
+    driver.realMode = false;
+    return;
+  }
+  driver.realMode = true;
+  driver.geoWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      driver.realCoords = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: Math.round(pos.coords.accuracy)
+      };
+      driver.lastUpdated = Date.now();
+      driver.geoError = null;
+      if(activeDriverId === driver.driverId) renderDriverDashboard(driver);
+      if(activeStudentDriverId === driver.driverId) renderStudentView(driver);
+    },
+    (err) => {
+      driver.geoError = err.code === 1 ? "Location permission denied."
+                       : err.code === 2 ? "Position unavailable right now."
+                       : "Location request timed out.";
+      if(activeDriverId === driver.driverId) renderDriverDashboard(driver);
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+  );
+}
+
+function stopRealGPS(driver){
+  if(driver.geoWatchId != null && navigator.geolocation){
+    navigator.geolocation.clearWatch(driver.geoWatchId);
+  }
+  driver.geoWatchId = null;
+  driver.realMode = false;
+  driver.realCoords = null;
+}
+
+function geoStatusText(driver){
+  if(!driver.sharing) return "Turn on location sharing first";
+  if(!navigator.geolocation) return "Not supported in this browser";
+  if(!window.isSecureContext) return "Needs HTTPS (or localhost)";
+  if(driver.geoError) return driver.geoError;
+  if(driver.realMode) return driver.realCoords ? `Live from this device · ±${driver.realCoords.accuracy} m` : "Waiting for GPS fix…";
+  return "Off — using simulated coordinates";
+}
+
+/* ----------------------------------------------------------------------
+   REAL MAP (Leaflet + OpenStreetMap) — shown instead of the demo SVG
+   route whenever a driver's real device GPS is active. The container div
+   gets recreated whenever the surrounding dashboard re-renders, so this
+   helper re-attaches a fresh Leaflet map if the old one's DOM node is gone.
+   ---------------------------------------------------------------------- */
+function renderRealMap(containerId, state, coords){
+  const el = document.getElementById(containerId);
+  if(!el || typeof L === "undefined") return;
+
+  if(state.map && !document.body.contains(state.map.getContainer())){
+    state.map = null; state.marker = null; // old container was replaced, start fresh
+  }
+
+  if(!state.map){
+    state.map = L.map(containerId).setView([coords.lat, coords.lng], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(state.map);
+    state.marker = L.marker([coords.lat, coords.lng], {
+      icon: L.divIcon({ className: "real-bus-marker", html: "🚌", iconSize: [26,26] })
+    }).addTo(state.map);
+  } else {
+    state.marker.setLatLng([coords.lat, coords.lng]);
+    state.map.panTo([coords.lat, coords.lng]);
+  }
+}
+
+const driverMapState = { map: null, marker: null };
+const studentMapState = { map: null, marker: null };
+
+function coordsDisplay(driver){
+  if(!driver.sharing) return "—";
+  if(driver.realMode){
+    return driver.realCoords
+      ? `${driver.realCoords.lat.toFixed(5)}° N, ${driver.realCoords.lng.toFixed(5)}° E (live)`
+      : "Waiting for GPS fix…";
+  }
+  return simulatedCoords(driver);
+}
+
+// Seed demo drivers so the app is testable immediately
+makeDriver("DRV-1001", "Ramesh Yadav", "9876543210", "RJ14-BUS-07", "A", true);
+makeDriver("DRV-1002", "Suresh Kumar", "9123456780", "RJ14-BUS-12", "B", false);
+makeDriver("DRV-1003", "Mahesh Singh", "9988776655", "RJ14-BUS-19", "C", true);
+
+function findDriverByQuery(q){
+  q = q.trim().toLowerCase();
+  if(!q) return null;
+  return Object.values(drivers).find(d =>
+    d.driverId.toLowerCase() === q ||
+    d.bus.toLowerCase() === q ||
+    d.mobile === q
+  ) || null;
+}
+
+/* ======================================================================
+   SIMULATION LOOP — advances every "sharing" driver along its route
+   ====================================================================== */
+setInterval(() => {
+  Object.values(drivers).forEach(d => {
+    if(d.sharing && !d.realMode){
+      d.progress += d.speed;
+      if(d.progress >= 1) d.progress -= 1; // loop the route
+      d.lastUpdated = Date.now();
+    }
+  });
+  refreshActiveViews();
+}, 1800);
+
+/* ======================================================================
+   GEOMETRY HELPERS
+   ====================================================================== */
+function pointAtFraction(pathEl, frac){
+  const len = pathEl.getTotalLength();
+  return pathEl.getPointAtLength(len * frac);
+}
+
+function nearestStops(route, frac){
+  const stops = route.stops;
+  let currentIdx = 0;
+  for(let i=0;i<stops.length;i++){
+    if(stops[i].frac <= frac) currentIdx = i;
+  }
+  const nextIdx = Math.min(currentIdx + 1, stops.length - 1);
+  return { current: stops[currentIdx], next: stops[nextIdx], currentIdx, nextIdx };
+}
+
+function statusFor(driver, route){
+  if(!driver.sharing) return { key:"off", label:"Offline" };
+  const { current, next, currentIdx, nextIdx } = nearestStops(route, driver.progress);
+  if(currentIdx === nextIdx) return { key:"stop", label:"At " + current.name };
+  const span = next.frac - current.frac || 0.0001;
+  const into = (driver.progress - current.frac) / span;
+  if(into > 0.72) return { key:"soon", label:"Arriving Soon" };
+  return { key:"on", label:"On Route" };
+}
+
+function simulatedCoords(driver){
+  // small deterministic-looking drift around the base coordinate
+  const seed = driver.progress * 6.283;
+  const lat = (BASE_LAT + Math.sin(seed) * 0.014).toFixed(5);
+  const lng = (BASE_LNG + Math.cos(seed*1.3) * 0.014).toFixed(5);
+  return `${lat}° N, ${lng}° E`;
+}
+
+function etaMinutes(driver, route){
+  const { next } = nearestStops(route, driver.progress);
+  const remaining = Math.max(0, next.frac - driver.progress);
+  return Math.max(1, Math.round(remaining * 22)); // ~22 min per full loop, illustrative
+}
+
+function timeAgo(ts){
+  const s = Math.max(0, Math.round((Date.now() - ts)/1000));
+  return s < 2 ? "just now" : s + "s ago";
+}
+
+/* ======================================================================
+   SVG ROUTE RENDERING
+   ====================================================================== */
+function routeSVG(routeId, driver){
+  const route = ROUTES[routeId];
+  const stopsHTML = route.stops.map((s,i) => {
+    return `<circle class="stop-dot" data-idx="${i}" r="7" />
+            <text class="stop-label" data-lbl="${i}"></text>`;
+  }).join("");
+
+  return `
+  <svg viewBox="0 0 640 340" xmlns="http://www.w3.org/2000/svg" aria-label="Route map for ${route.name}">
+    <path class="route-path" d="${route.path}" />
+    <path class="route-progress" id="progress-path" d="${route.path}" stroke-dasharray="1" stroke-dashoffset="1" pathLength="1" style="stroke-dasharray:1; stroke-dashoffset:${1 - (driver ? driver.progress : 0)};" />
+    <path id="ref-path" d="${route.path}" style="display:none;" />
+    ${stopsHTML}
+    ${driver ? `
+    <g id="bus-marker" class="bus-icon">
+      <circle r="13" fill="${driver.sharing ? 'var(--amber)' : 'var(--offline)'}" stroke="#fff" stroke-width="3"/>
+      <text x="0" y="4" text-anchor="middle" font-size="12" font-weight="700" fill="#3A2600" font-family="Inter, sans-serif">🚌</text>
+    </g>` : ""}
+  </svg>`;
+}
+
+function positionRouteSVG(container, routeId, driver){
+  const route = ROUTES[routeId];
+  const refPath = container.querySelector("#ref-path");
+  const len = refPath.getTotalLength();
+
+  route.stops.forEach((s,i) => {
+    const pt = refPath.getPointAtLength(len * s.frac);
+    const dot = container.querySelector(`circle[data-idx="${i}"]`);
+    const lbl = container.querySelector(`text[data-lbl="${i}"]`);
+    dot.setAttribute("cx", pt.x);
+    dot.setAttribute("cy", pt.y);
+    lbl.setAttribute("x", pt.x);
+    lbl.setAttribute("y", pt.y - 14);
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.textContent = s.name;
+
+    if(driver){
+      const { currentIdx, nextIdx } = nearestStops(route, driver.progress);
+      if(i < currentIdx || (i===currentIdx && currentIdx===nextIdx)) dot.classList.add("passed");
+      if(i === currentIdx && currentIdx !== nextIdx) dot.classList.add("current");
+    }
+  });
+
+  if(driver){
+    const busPt = refPath.getPointAtLength(len * driver.progress);
+    const marker = container.querySelector("#bus-marker");
+    if(marker) marker.setAttribute("transform", `translate(${busPt.x}, ${busPt.y})`);
+  }
+}
+
+/* ======================================================================
+   STUDENT PANEL
+   ====================================================================== */
+const sSearch = document.getElementById("s-search");
+const sSearchBtn = document.getElementById("s-search-btn");
+const sError = document.getElementById("s-error");
+const sChips = document.getElementById("s-chips");
+const sMapCard = document.getElementById("s-map-card");
+const sDetails = document.getElementById("s-details");
+const sKv = document.getElementById("s-kv");
+
+let activeStudentDriverId = null;
+
+function renderChips(){
+  sChips.innerHTML = "";
+  Object.values(drivers).forEach(d => {
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.textContent = d.bus;
+    chip.onclick = () => { sSearch.value = d.bus; runStudentSearch(); };
+    sChips.appendChild(chip);
+  });
+}
+
+function badgeHTML(status){
+  const map = {
+    on: ["status-on","On Route"],
+    soon: ["status-soon","Arriving Soon"],
+    stop: ["status-stop", status.label],
+    off: ["status-off","Not Sharing Location"]
+  };
+  const [cls, fallbackLabel] = map[status.key];
+  const label = status.key === "stop" ? status.label : fallbackLabel;
+  return `<span class="status-badge ${cls}"><span class="dot"></span>${label}</span>`;
+}
+
+function runStudentSearch(){
+  sError.style.display = "none";
+  const driver = findDriverByQuery(sSearch.value);
+  if(!driver){
+    sError.textContent = "No bus found with that number or driver ID. Try one of the demo buses below.";
+    sError.style.display = "block";
+    activeStudentDriverId = null;
+    return;
+  }
+  activeStudentDriverId = driver.driverId;
+  renderStudentView(driver);
+}
+
+function renderStudentView(driver){
+  const route = ROUTES[driver.routeId];
+  const status = statusFor(driver, route);
+  const { current, next } = nearestStops(route, driver.progress);
+
+  sMapCard.innerHTML = `
+    <div class="map-head">
+      <div>
+        <h2>${driver.bus}</h2>
+        <div class="route-name">${route.name} &middot; Driver ${driver.name}${driver.realMode ? " &middot; live device GPS" : ""}</div>
+      </div>
+      ${badgeHTML(status)}
+    </div>
+    ${driver.realMode && driver.realCoords ? `
+    <div class="real-map-note">Showing this driver's actual live device location.</div>
+    <div class="map-wrap"><div id="s-real-map" class="real-map-el"></div></div>
+    ` : `
+    <div class="map-wrap">${routeSVG(driver.routeId, driver)}</div>
+    <div class="stop-strip">
+      ${route.stops.map((s,i) => {
+        const { currentIdx, nextIdx } = nearestStops(route, driver.progress);
+        let cls = "stop-pill";
+        if(i < currentIdx || (i===currentIdx && currentIdx===nextIdx)) cls += " passed";
+        if(i === currentIdx && currentIdx !== nextIdx) cls += " current";
+        return `<span class="${cls}">${i+1}. ${s.name}</span>`;
+      }).join("")}
+    </div>
+    `}
+  `;
+  if(driver.realMode && driver.realCoords){
+    renderRealMap("s-real-map", studentMapState, driver.realCoords);
+  } else {
+    positionRouteSVG(sMapCard, driver.routeId, driver);
+  }
+
+  sDetails.style.display = "block";
+  sKv.innerHTML = `
+    <div class="kv"><span class="k">Driver</span><span class="v">${driver.name}</span></div>
+    <div class="kv"><span class="k">Route</span><span class="v">${route.name}</span></div>
+    <div class="kv"><span class="k">Current stop</span><span class="v">${status.key === "off" ? "—" : current.name}</span></div>
+    <div class="kv"><span class="k">Next stop</span><span class="v">${status.key === "off" ? "—" : next.name}</span></div>
+    <div class="kv"><span class="k">ETA to next stop</span><span class="v">${status.key === "off" ? "—" : etaMinutes(driver, route) + " min"}</span></div>
+    <div class="kv"><span class="k">${driver.realMode ? "Live GPS" : "Simulated GPS"}</span><span class="v coord">${coordsDisplay(driver)}</span></div>
+    <div class="kv"><span class="k">Last updated</span><span class="v">${status.key === "off" ? "—" : timeAgo(driver.lastUpdated)}</span></div>
+  `;
+}
+
+sSearchBtn.onclick = runStudentSearch;
+sSearch.addEventListener("keydown", e => { if(e.key === "Enter") runStudentSearch(); });
+
+/* ======================================================================
+   DRIVER PANEL — registration
+   ====================================================================== */
+const rRoute = document.getElementById("r-route");
+Object.entries(ROUTES).forEach(([id, r]) => {
+  const opt = document.createElement("option");
+  opt.value = id; opt.textContent = r.name;
+  rRoute.appendChild(opt);
+});
+
+const rName = document.getElementById("r-name");
+const rMobile = document.getElementById("r-mobile");
+const rBus = document.getElementById("r-bus");
+const rError = document.getElementById("r-error");
+const rResult = document.getElementById("r-result");
+
+document.getElementById("r-btn").onclick = () => {
+  rError.style.display = "none";
+  const name = rName.value.trim();
+  const mobile = rMobile.value.trim();
+  const bus = rBus.value.trim();
+
+  if(!name || !mobile || !bus){
+    rError.textContent = "Please fill in your name, mobile number and bus number.";
+    rError.style.display = "block"; return;
+  }
+  if(!/^[6-9]\d{9}$/.test(mobile)){
+    rError.textContent = "Enter a valid 10-digit mobile number.";
+    rError.style.display = "block"; return;
+  }
+  if(findDriverByQuery(mobile)){
+    rError.textContent = "This mobile number is already registered. Try logging in instead.";
+    rError.style.display = "block"; return;
+  }
+
+  const driverId = "DRV-" + (nextDriverSeq++);
+  makeDriver(driverId, name, mobile, bus, rRoute.value, false);
+
+  document.getElementById("r-result-id").textContent = driverId;
+  document.getElementById("r-result-bus").textContent = bus;
+  document.getElementById("r-result-route").textContent = ROUTES[rRoute.value].name;
+  rResult.style.display = "block";
+
+  document.getElementById("d-login").value = driverId;
+};
+
+/* ======================================================================
+   DRIVER PANEL — login + dashboard
+   ====================================================================== */
+const dLogin = document.getElementById("d-login");
+const dLoginError = document.getElementById("d-login-error");
+const dDashWrap = document.getElementById("d-dashboard-wrap");
+
+let activeDriverId = null;
+
+document.getElementById("d-login-btn").onclick = () => {
+  dLoginError.style.display = "none";
+  const driver = findDriverByQuery(dLogin.value);
+  if(!driver){
+    dLoginError.textContent = "No driver found with that mobile number or driver ID.";
+    dLoginError.style.display = "block";
+    return;
+  }
+  activeDriverId = driver.driverId;
+  renderDriverDashboard(driver);
+};
+
+function renderDriverDashboard(driver){
+  const route = ROUTES[driver.routeId];
+  const status = statusFor(driver, route);
+  const { current, next } = nearestStops(route, driver.progress);
+
+  dDashWrap.innerHTML = `
+    <div class="card map-card">
+      <div class="map-head">
+        <div>
+          <h2>${driver.bus}</h2>
+          <div class="route-name">${route.name} &middot; ${driver.name}</div>
+        </div>
+        ${badgeHTML(status)}
+      </div>
+      ${driver.realMode && driver.realCoords ? `
+      <div class="real-map-note">This is your actual live position from this device.</div>
+      <div class="map-wrap"><div id="d-real-map" class="real-map-el"></div></div>
+      ` : `
+      <div class="map-wrap">${routeSVG(driver.routeId, driver)}</div>
+      `}
+    </div>
+    <div class="card">
+      <h2>Location sharing</h2>
+      <div class="sub">Turn this on so students can see ${driver.bus} live on their dashboard.</div>
+      <div class="toggle-row">
+        <div class="txt">
+          <strong>${driver.sharing ? "Sharing your location" : "Location sharing is off"}</strong>
+          <span>${driver.sharing ? "Broadcasting position every couple of seconds" : "Students will see this bus as offline"}</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="d-share-toggle" ${driver.sharing ? "checked" : ""}>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row" style="margin-top:10px;">
+        <div class="txt">
+          <strong>Use this device's real GPS</strong>
+          <span>${geoStatusText(driver)}</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="d-geo-toggle" ${driver.realMode ? "checked" : ""} ${driver.sharing ? "" : "disabled"}>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="hint">Turning this on will ask your browser for location permission. Needs HTTPS (or localhost) to work. The route map above keeps using the demo simulation either way — matching real coordinates to a specific stop would need a real backend.</div>
+      <div class="kv-list">
+        <div class="kv"><span class="k">Current / next stop</span><span class="v">${driver.sharing ? current.name + " → " + next.name : "—"}</span></div>
+        <div class="kv"><span class="k">${driver.realMode ? "Live GPS" : "Simulated GPS"}</span><span class="v coord">${coordsDisplay(driver)}</span></div>
+        <div class="kv"><span class="k">Last updated</span><span class="v">${driver.sharing ? timeAgo(driver.lastUpdated) : "—"}</span></div>
+      </div>
+    </div>
+  `;
+
+  if(driver.realMode && driver.realCoords){
+    renderRealMap("d-real-map", driverMapState, driver.realCoords);
+  } else {
+    positionRouteSVG(dDashWrap, driver.routeId, driver);
+  }
+
+  document.getElementById("d-share-toggle").onchange = (e) => {
+    driver.sharing = e.target.checked;
+    driver.lastUpdated = Date.now();
+    if(!driver.sharing) stopRealGPS(driver);
+    renderDriverDashboard(driver);
+  };
+
+  document.getElementById("d-geo-toggle").onchange = (e) => {
+    if(e.target.checked){
+      startRealGPS(driver);
+    } else {
+      stopRealGPS(driver);
+    }
+    renderDriverDashboard(driver);
+  };
+}
+
+/* ======================================================================
+   TABS
+   ====================================================================== */
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  };
+});
+
+/* ======================================================================
+   LIVE REFRESH — keeps whichever views are open in sync with the sim
+   ====================================================================== */
+function refreshActiveViews(){
+  // Real-GPS drivers refresh themselves on each actual fix (see startRealGPS)
+  // instead of on this timer, so the real map isn't rebuilt every tick.
+  if(activeStudentDriverId && drivers[activeStudentDriverId] && !drivers[activeStudentDriverId].realMode){
+    renderStudentView(drivers[activeStudentDriverId]);
+  }
+  if(activeDriverId && drivers[activeDriverId] && !drivers[activeDriverId].realMode){
+    renderDriverDashboard(drivers[activeDriverId]);
+  }
+  renderTicker();
+}
+
+function renderTicker(){
+  const items = Object.values(drivers).map(d => {
+    const route = ROUTES[d.routeId];
+    const status = statusFor(d, route);
+    const label = status.key === "off" ? "Offline" : status.label;
+    return `<span><b>${d.bus}</b> — ${route.name} — ${label}</span>`;
+  });
+  document.getElementById("ticker").innerHTML = items.concat(items).join(""); // duplicate for seamless loop
+}
+
+function tickClock(){
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString("en-IN", { hour12:false });
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+/* ======================================================================
+   INIT
+   ====================================================================== */
+renderChips();
+renderTicker();
+</script>
+</body>
+</html>
